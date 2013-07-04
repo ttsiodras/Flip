@@ -44,20 +44,17 @@ struct Move {
     enum { Sentinel=0xf };
     unsigned char _yx;
     inline Move(int y, int x):_yx((y<<4)|x) {}
+    inline Move(unsigned char yx):_yx(yx) {}
     inline int y() const { return _yx>>4; }
     inline int x() const { return _yx&0xf; }
 };
 
-struct ListOfMoves {
-    unsigned char _yx[SIZE*SIZE+1];
-    ListOfMoves() {
-        memset(&_yx, 0, sizeof(_yx));
-    }
-    void addMove(const Move& m) {
-        _yx[m.y()*SIZE + m.x()] = 1;
+struct ListOfMoves : bitset<SIZE*SIZE> {
+    void addMove(int y, int x) {
+        (*this)[y*SIZE + x] = true;
     }
     bool moveExists(int y, int x) {
-        return _yx[y*SIZE+x] == 1;
+        return (*this)[y*SIZE+x];
     }
 };
 
@@ -98,7 +95,19 @@ void playMove(Board& board, int y, int x)
 // The brains of the operation - basically a Breadth-First-Search
 // of the problem space:
 //    http://en.wikipedia.org/wiki/Breadth-first_search
-//
+
+//struct BFSNode {
+//    unsigned long _u1, _u2;
+//    BFSNode(int level, const Move& move, const Board& board, const ListOfMoves& listOfMoves) 
+//    {
+//        _u1 = board.to_ulong() || (level << 24);
+//        _u2 = (move._yx << 24) || listOfMoves._yx;
+//    }
+//    int getLevel() { return _u1 >> 24; }
+//    Move getMove() { return Move(unsigned char(_u2>>24)); }
+//    ListOfMoves getListOfMoves() { return ListOfMoves(); }
+//};
+
 void SolveBoard(Board& board)
 {
     cout << "\nSearching for a solution...";
@@ -227,7 +236,7 @@ void SolveBoard(Board& board)
                             if (visited.find(newBoard) == visited.end()) {
                                 /* Add to the end of the queue for further study */
                                 auto newMovesSoFar = movesSoFar;
-                                newMovesSoFar.addMove(Move(i, j));
+                                newMovesSoFar.addMove(i, j);
                                 queue.push_back(
                                     DepthAndMoveAndState(
                                         level+1, Move(i, j), newBoard, newMovesSoFar));
@@ -273,7 +282,8 @@ int main()
     //
     board.get(4,0) = true;
     board.get(4,1) = true;
-    board.get(4,2) = true;
+    board.get(4,3) = true;
+    board.get(4,4) = true;
 
     SolveBoard(board);
 }
