@@ -10,8 +10,6 @@ let g_debug = ref false
 (* Limiting the board space: only consider boards
  * with less than this many set tiles
  *)
-let g_limit = ref 6
-
 (* Very useful syntactic sugar *)
 let ( |> ) x fn = fn x
 
@@ -45,14 +43,6 @@ let playMove board yy xx =
     toggleBoard (yy-1) xx ;
     toggleBoard yy (xx-1) ;
     newBoard
-
-let totalSet board =
-    let count = ref 0 in
-    for i=0 to g_boardSize*g_boardSize-1 do 
-        if board.(i) = Full then
-            count := !count + 1
-    done ;
-    !count
 
 let solvedBoard = Array.make (g_boardSize*g_boardSize) Empty
 
@@ -105,7 +95,7 @@ module H = Hashtbl.Make(
    of the problem space:
        http://en.wikipedia.org/wiki/Breadth-first_search *)
 let solveBoard tileArray =
-    Printf.printf "\nSearching for a solution with maximum set tiles: %d\n" !g_limit;
+    Printf.printf "\nSearching for a solution...\n" ;
     (* We need to store the last move that got us to a specific *)
     (*  board state - that way we can backtrack from a final board *)
     (*  state to the list of moves we used to achieve it. *)
@@ -126,7 +116,7 @@ let solveBoard tileArray =
     (*  Jumpstart the Q with initial board state and a dummy move *)
     Queue.add (1, dummyMove, tileArray) queue;
     let currentLevel = ref 0 in
-    while not (Queue.is_empty queue) do
+    while not (Queue.is_empty queue) do (
         (*  Extract first element of the queue *)
         let level, move, board = Queue.take queue in
         if !g_debug then (
@@ -190,7 +180,7 @@ let solveBoard tileArray =
                 ;
                 print_endline "All done! :-)";
                 exit 0;
-            ) else (
+            ) else
                 (*  Nope, tiles still left. *)
                 (*  *)
                 (*  Add all potential states arrising from immediate *)
@@ -203,24 +193,22 @@ let solveBoard tileArray =
                                 (i>0             && (get board (i-1) j) = Full) ||
                                 (j>0             && (get board i (j-1)) = Full) then (
                             let newBoard = playMove board i j in
-                            if totalSet newBoard < !g_limit then (
-                                if !g_debug then (
-                                    print_endline "\nThis next move..." ;
-                                    printBoard newBoard ;
-                                    Printf.printf "is in visited: %B\n\n" (H.mem visited newBoard) 
-                                ) ;
-                                if not (H.mem visited newBoard) then (
-                                    if !g_debug then
-                                        Printf.printf "Adding this to end of Q (%d,%d):\n" i j ;
-                                    Queue.add (level+1, {_y=i; _x=j}, newBoard) queue;
-                                )
+                            if !g_debug then (
+                                print_endline "\nThis next move..." ;
+                                printBoard newBoard ;
+                                Printf.printf "is in visited: %B\n\n" (H.mem visited newBoard) 
+                            ) ;
+                            if not (H.mem visited newBoard) then (
+                                if !g_debug then
+                                    Printf.printf "Adding this to end of Q (%d,%d):\n" i j ;
+                                Queue.add (level+1, {_y=i; _x=j}, newBoard) queue;
                             )
-                    )) done
-                    ;
+                        )
+                    ) done
                 ) done
-            )
         )
         (*  and go recheck the queue, from the top! *)
+    )
     done
 
 let _ =
@@ -235,14 +223,9 @@ let _ =
         any(Array.to_list (Array.map (fun x -> (x = str)) args)) in
     g_debug := inArgs Sys.argv "-debug" ;
     let initialBoard = Array.make (g_boardSize*g_boardSize) Empty in (
-(*
-        initialBoard.(13) <- Full ;
-        initialBoard.(14) <- Full ;
-        initialBoard.(15) <- Full ;
-*)
-        initialBoard.(0) <- Full ;
-        for i=6 to 25 do 
-            g_limit := i ;
-            solveBoard initialBoard
-        done
+        initialBoard.(20) <- Full ;
+        initialBoard.(21) <- Full ;
+        initialBoard.(23) <- Full ;
+        initialBoard.(24) <- Full ;
+        solveBoard initialBoard
     )
