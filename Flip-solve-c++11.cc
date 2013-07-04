@@ -22,6 +22,7 @@ public:
     inline bool get(int y, int x) const { return operator[](y*SIZE + x); }
     inline reference get(int y, int x) { return operator[](y*SIZE + x); }
     inline bool operator<(const Board& rhs) const {
+#ifdef NONOPTIMAL_COMPARISON_PER_BIT
         size_t i = SIZE*SIZE-1;
         while (i > 0) {
             if ((*this)[i-1] == rhs[i-1])
@@ -30,45 +31,33 @@ public:
                return (*this)[i-1] < rhs[i-1];
         }
         return false;
+#else
+        static_assert(
+            sizeof(Board)<=sizeof(unsigned long),
+            "Board size requires #define NONOPTIMAL_COMPARISON_PER_BIT");
+        return this->to_ulong() < rhs.to_ulong();
+#endif
     };
 };
 
-//
-// Older form, wasted memory (obsolete)
-//
-//struct Move {
-//    int _y, _x;
-//    Move(int y, int x):_y(y), _x(x) {}
-//    int y() const { return _y; }
-//    int x() const { return _x; }
-//};
 struct Move {
-    static const int Sentinel;
+    enum { Sentinel=0xf };
     unsigned char _yx;
     inline Move(int y, int x):_yx((y<<4)|x) {}
     inline int y() const { return _yx>>4; }
     inline int x() const { return _yx&0xf; }
 };
-const int Move::Sentinel=0xf;
 
 struct ListOfMoves {
     unsigned char _yx[SIZE*SIZE+1];
     ListOfMoves() {
-        _yx[0] = 1;
+        memset(&_yx, 0, sizeof(_yx));
     }
     void addMove(const Move& m) {
-        unsigned idx = _yx[0];
-        assert (idx<SIZE*SIZE+1);
-        _yx[idx++] = m.y() << 4 | m.x();
-        _yx[0] = idx;
+        _yx[m.y()*SIZE + m.x()] = 1;
     }
     bool moveExists(int y, int x) {
-        for(int i=1; i<_yx[0]; i++) {
-            if ((_yx[i]>>4) == y && (_yx[i]&0xf) == x)
-                return true;
-
-        }
-        return false;
+        return _yx[y*SIZE+x] == 1;
     }
 };
 
@@ -76,9 +65,8 @@ const pair<int,int> g_offsetsList[] = {
     {0,0}, {0,1}, {0,-1}, {1,0}, {-1,0}
 };
 
-int g_limit = 6;
-
-// This function pretty-prints a list of blocks
+// This function pretty-prints a board,
+// highlighting a possible move.
 void printBoard(const Board& board, Move move)
 {
     cout << "+---------------+\n";
@@ -113,9 +101,7 @@ void playMove(Board& board, int y, int x)
 //
 void SolveBoard(Board& board)
 {
-    cout << "\nSearching for a solution with up to ";
-    cout << g_limit;
-    cout << " tiles set..." << endl;
+    cout << "\nSearching for a solution...";
 
     // We need to store the last move that got us to a specific
     // board state - that way we can backtrack from a final board
@@ -123,8 +109,8 @@ void SolveBoard(Board& board)
     typedef pair<Board, int> BoardAndLevel;
     map<BoardAndLevel, Move> previousMoves;
     // Start by storing a "sentinel" value, for the initial board
-    // state - we used no Move to achieve it, so store a block id
-    // of -1 to mark it:
+    // state - we used no Move to achieve it, so store a special Move
+    // marked up with a sentinel value.
     int oldLevel = 0;
     BoardAndLevel key(board, oldLevel);
     previousMoves.insert(
@@ -138,23 +124,31 @@ void SolveBoard(Board& board)
     // storing the states we need to investigate - so it needs to
     // be a list of board states... We'll also be maintaining
     // the depth we traversed to reach this board state, and the
-    // move to perform - so we end up with a tuple of
-    // int (depth), Move, list of blocks (state).
+    // move used to reach it - so we end up with a tuple of
+    // int (depth), Move, Board (state), and list of moves so far.
+    // We need the last one to make sure we don't toggle the same cell
+    // twice (and thus waste a move).
     typedef tuple<int, Move, Board, ListOfMoves> DepthAndMoveAndState;
     list<DepthAndMoveAndState> queue;
 
-    // Start with our initial board state, and playedMoveDepth set to 1
-    queue.push_back(DepthAndMoveAndState(1, Move(Move::Sentinel, Move::Sentinel), board, ListOfMoves()));
+    // Start with our initial board state, a depth of 1, a sentinel Move
+    // (we used no move to get here) and an empty list of moves so far.
+    queue.push_back(
+        DepthAndMoveAndState(
+            0, Move(Move::Sentinel, Move::Sentinel), board, ListOfMoves()));
 
     while(!queue.empty()) {
 
         // Extract first element of the queue
-        auto qtop = *queue.begin();
-        auto level = get<0>(qtop);
-        auto move = get<1>(qtop);
-        auto board = get<2>(qtop);
+        auto qtop       = *queue.begin();
+        auto level      = get<0>(qtop);
+        auto move       = get<1>(qtop);
+        auto board      = get<2>(qtop);
         auto movesSoFar = get<3>(qtop);
         queue.pop_front();
+
+        if (level == 7)
+            exit(0);
 
         // Report depth increase when it happens
         if (level > oldLevel) {
@@ -185,7 +179,7 @@ void SolveBoard(Board& board)
         if (board == empty) {
 
             // Yes - we did it!
-            cout << "\n\nSolved!\n";
+            cout << "\n\nSolved at depth " << level << "!\n";
 
             // To print the Moves we used in normal order, we will
             // backtrack through the board states to print
@@ -225,36 +219,24 @@ void SolveBoard(Board& board)
                 if (movesSoFar.moveExists(i,j))
                     continue;
 
-                bool bFoundFullTileCloseBy = false;
                 for (auto& step: g_offsetsList) {
                     int yy = i + step.first;
                     int xx = j + step.second;
                     if (yy>=0 && yy<SIZE && xx>=0 && xx<SIZE) {
                         if (board.get(yy, xx)) {
-                            bFoundFullTileCloseBy = true;
+                            Board newBoard = board;
+                            playMove(newBoard, i, j);
+
+                            if (visited.find(newBoard) == visited.end()) {
+                                /* Add to the end of the queue for further study */
+                                auto newMovesSoFar = movesSoFar;
+                                newMovesSoFar.addMove(Move(i, j));
+                                queue.push_back(
+                                    DepthAndMoveAndState(
+                                        level+1, Move(i, j), newBoard, newMovesSoFar));
+                            }
                             break;
                         }
-                    }
-                }
-                if (bFoundFullTileCloseBy) {
-                    Board newBoard = board;
-                    playMove(newBoard, i, j);
-
-                    /*
-                    int totalFull = 0;
-                    for(int ii=0; ii<SIZE*SIZE; ii++)
-                        totalFull += newBoard[ii]?1:0;
-                    if (totalFull>=g_limit)
-                        continue;
-                    */
-
-                    if (visited.find(newBoard) == visited.end()) {
-                        /* Add to the end of the queue for further study */
-                        auto newMovesSoFar = movesSoFar;
-                        newMovesSoFar.addMove(Move(i, j));
-                        queue.push_back(
-                            DepthAndMoveAndState(
-                                level+1, Move(i, j), newBoard, newMovesSoFar));
                     }
                 }
             }
@@ -282,12 +264,18 @@ int main()
     //board.get(3,0) = true; board.get(3,3) = true; board.get(3,4) = true;
     //board.get(4,0) = true; board.get(4,1) = true; board.get(4,3) = true; board.get(4,4) = true;
     //
-    board.get(0,0) = true; board.get(0,4) = true;
-    board.get(1,2) = true; board.get(1,3) = true; board.get(1,4) = true;
-    board.get(2,2) = true; board.get(2,4) = true;
-    board.get(3,0) = true; board.get(3,2) = true; board.get(3,3) = true; board.get(3,4) = true;
-    board.get(4,0) = true; board.get(4,1) = true; board.get(4,2) = true; board.get(4,4) = true;
+    //board.get(0,0) = true; board.get(0,4) = true;
+    //board.get(1,2) = true; board.get(1,3) = true; board.get(1,4) = true;
+    //board.get(2,2) = true; board.get(2,4) = true;
+    //board.get(3,0) = true; board.get(3,2) = true; board.get(3,3) = true; board.get(3,4) = true;
+    //board.get(4,0) = true; board.get(4,1) = true; board.get(4,2) = true; board.get(4,4) = true;
+    //
+    //board.get(4,2) = true;
+    //board.get(4,3) = true;
+    //board.get(4,4) = true;
+    //
+    board.get(0,0) = true;
+    board.get(4,1) = true;
 
-    for (g_limit=6; g_limit<SIZE*SIZE; g_limit++)
-        SolveBoard(board);
+    SolveBoard(board);
 }
