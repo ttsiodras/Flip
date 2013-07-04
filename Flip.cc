@@ -18,28 +18,38 @@ using namespace std;
 
 //#define NONOPTIMAL_CODE 
 
+#ifdef NONOPTIMAL_CODE
+enum TileKind {
+    Empty = 0,
+    Full  = 1
+};
+
+struct Board: public vector<TileKind> {
+    Board():vector<TileKind>(SIZE*SIZE) {}
+    inline TileKind  get(int y, int x) const { return operator[](y*SIZE + x); }
+    inline TileKind& get(int y, int x) { return operator[](y*SIZE + x); }
+};
+#else
 struct Board: public bitset<SIZE*SIZE> {
     Board(unsigned long v=0):bitset<SIZE*SIZE>(v) {}
     inline bool get(int y, int x) const { return operator[](y*SIZE + x); }
     inline reference get(int y, int x) { return operator[](y*SIZE + x); }
     inline bool operator<(const Board& rhs) const {
-#ifdef NONOPTIMAL_CODE
-        size_t i = SIZE*SIZE-1;
-        while (i > 0) {
-            if ((*this)[i-1] == rhs[i-1])
-                i--;
-            else 
-               return (*this)[i-1] < rhs[i-1];
-        }
-        return false;
-#else
+        //size_t i = SIZE*SIZE-1;
+        //while (i > 0) {
+        //    if ((*this)[i-1] == rhs[i-1])
+        //        i--;
+        //    else 
+        //       return (*this)[i-1] < rhs[i-1];
+        //}
+        //return false;
         static_assert(
             sizeof(Board)<=sizeof(unsigned long),
-            "Board size requires #define NONOPTIMAL_CODE");
+            "Uncomment the full comparison in Board::operator<");
         return to_ulong() < rhs.to_ulong();
-#endif
     };
 };
+#endif
 
 struct Move {
     enum { Sentinel=0xf };
@@ -90,7 +100,11 @@ void playMove(Board& board, int y, int x)
         int yy = y + step.first;
         int xx = x + step.second;
         if (yy>=0 && yy<SIZE && xx>=0 && xx<SIZE) {
+#ifdef NONOPTIMAL_CODE
+            board.get(yy, xx) = board.get(yy, xx)==Full?Empty:Full;
+#else
             board.get(yy, xx) = !board.get(yy, xx);
+#endif
         }
     }
 }
@@ -192,13 +206,16 @@ void SolveBoard(Board& board)
         previousMoves.insert(pair<BoardAndLevel, Move>(key, move));
 
         // Check if this board state is a winning state:
-        // auto it=find_if(board.begin(), board.end(),
-        //     [](TileKind& x) { return x == full; });
-        //
-        // if (it == board.end()) {
+
+#ifdef NONOPTIMAL_CODE
+        auto it=find_if(board.begin(), board.end(),
+            [](TileKind& x) { return x == Full; });
+        
+        if (it == board.end()) {
+#else
         static bitset<SIZE*SIZE> empty;
         if (board == empty) {
-
+#endif
             // Yes - we did it!
             cout << "\n\nSolved at depth " << level << "!\n";
 
@@ -294,10 +311,17 @@ int main()
     //board.get(4,3) = true;
     //board.get(4,4) = true;
     //
-    board.get(4,0) = true;
-    board.get(4,1) = true;
-    board.get(4,3) = true;
-    board.get(4,4) = true;
+#ifdef NONOPTIMAL_CODE 
+    TileKind onValue = Full;
+#else
+    bool onValue = true;
+#endif
+    board.get(2,0) = onValue;
+    board.get(3,0) = onValue;
+    board.get(3,1) = onValue;
+    board.get(4,1) = onValue;
+    board.get(4,3) = onValue;
+    board.get(4,4) = onValue;
 
     SolveBoard(board);
 }
