@@ -1,6 +1,6 @@
 *.swp
-Flip
-Flip-solve-c++11
+FlipML
+FlipCPP
 Flip.cmi
 Flip.cmx
 Flip.o
