@@ -17,12 +17,14 @@ using namespace std;
 // The board is SIZE x SIZE tiles
 #define SIZE 5
 
-class Board: public bitset<SIZE*SIZE> {
-public:
+//#define NONOPTIMAL_CODE 
+
+struct Board: public bitset<SIZE*SIZE> {
+    Board(unsigned long v=0):bitset<SIZE*SIZE>(v) {}
     inline bool get(int y, int x) const { return operator[](y*SIZE + x); }
     inline reference get(int y, int x) { return operator[](y*SIZE + x); }
     inline bool operator<(const Board& rhs) const {
-#ifdef NONOPTIMAL_COMPARISON_PER_BIT
+#ifdef NONOPTIMAL_CODE
         size_t i = SIZE*SIZE-1;
         while (i > 0) {
             if ((*this)[i-1] == rhs[i-1])
@@ -34,8 +36,8 @@ public:
 #else
         static_assert(
             sizeof(Board)<=sizeof(unsigned long),
-            "Board size requires #define NONOPTIMAL_COMPARISON_PER_BIT");
-        return this->to_ulong() < rhs.to_ulong();
+            "Board size requires #define NONOPTIMAL_CODE");
+        return to_ulong() < rhs.to_ulong();
 #endif
     };
 };
@@ -50,6 +52,8 @@ struct Move {
 };
 
 struct ListOfMoves : bitset<SIZE*SIZE> {
+    ListOfMoves(unsigned long v=0):bitset<SIZE*SIZE>(v) {}
+
     void addMove(int y, int x) {
         (*this)[y*SIZE + x] = true;
     }
@@ -96,17 +100,23 @@ void playMove(Board& board, int y, int x)
 // of the problem space:
 //    http://en.wikipedia.org/wiki/Breadth-first_search
 
-//struct BFSNode {
-//    unsigned long _u1, _u2;
-//    BFSNode(int level, const Move& move, const Board& board, const ListOfMoves& listOfMoves) 
-//    {
-//        _u1 = board.to_ulong() || (level << 24);
-//        _u2 = (move._yx << 24) || listOfMoves._yx;
-//    }
-//    int getLevel() { return _u1 >> 24; }
-//    Move getMove() { return Move(unsigned char(_u2>>24)); }
-//    ListOfMoves getListOfMoves() { return ListOfMoves(); }
-//};
+#ifdef NONOPTIMAL_CODE
+typedef tuple<int,Move,Board,ListOfMoves> State;
+#else
+struct State {
+    unsigned long _u1, _u2;
+    State(int level, const Move& move, const Board& board, const ListOfMoves& listOfMoves) 
+    {
+        _u1 = (unsigned(level&0x1f) << 25) | board.to_ulong();
+        _u1 |= ((unsigned(move._yx) & 0x80) << 24);
+        _u2 = (move._yx << 25)             | listOfMoves.to_ulong();
+    }
+    int getLevel()               { return (int)((_u1 >> 25)&0x1F); }
+    Move getMove()               { return Move((unsigned char)(_u2>>25 | ((_u1&0x80000000) >> 24))); }
+    Board getBoard()             { return Board(_u1 & 0x1FFFFFF); }
+    ListOfMoves getListOfMoves() { return ListOfMoves(_u2 & 0x1FFFFFF); }
+};
+#endif
 
 void SolveBoard(Board& board)
 {
@@ -120,7 +130,7 @@ void SolveBoard(Board& board)
     // Start by storing a "sentinel" value, for the initial board
     // state - we used no Move to achieve it, so store a special Move
     // marked up with a sentinel value.
-    int oldLevel = 0;
+    unsigned char oldLevel = 0;
     BoardAndLevel key(board, oldLevel);
     previousMoves.insert(
         pair<BoardAndLevel, Move>(key, Move(Move::Sentinel, Move::Sentinel)));
@@ -137,23 +147,29 @@ void SolveBoard(Board& board)
     // int (depth), Move, Board (state), and list of moves so far.
     // We need the last one to make sure we don't toggle the same cell
     // twice (and thus waste a move).
-    typedef tuple<int, Move, Board, ListOfMoves> DepthAndMoveAndState;
-    list<DepthAndMoveAndState> queue;
+    list<State> queue;
 
     // Start with our initial board state, a depth of 1, a sentinel Move
     // (we used no move to get here) and an empty list of moves so far.
     queue.push_back(
-        DepthAndMoveAndState(
-            0, Move(Move::Sentinel, Move::Sentinel), board, ListOfMoves()));
+        State(
+            0, Move(Move::Sentinel, Move::Sentinel), board, ListOfMoves(0)));
 
     while(!queue.empty()) {
 
         // Extract first element of the queue
         auto qtop       = *queue.begin();
+#ifdef NONOPTIMAL_CODE
         auto level      = get<0>(qtop);
         auto move       = get<1>(qtop);
         auto board      = get<2>(qtop);
         auto movesSoFar = get<3>(qtop);
+#else
+        auto level      = qtop.getLevel();
+        auto move       = qtop.getMove();
+        auto board      = qtop.getBoard();
+        auto movesSoFar = qtop.getListOfMoves();
+#endif
         queue.pop_front();
 
         // Report depth increase when it happens
@@ -238,8 +254,7 @@ void SolveBoard(Board& board)
                                 auto newMovesSoFar = movesSoFar;
                                 newMovesSoFar.addMove(i, j);
                                 queue.push_back(
-                                    DepthAndMoveAndState(
-                                        level+1, Move(i, j), newBoard, newMovesSoFar));
+                                    State(level+1, Move(i, j), newBoard, newMovesSoFar));
                             }
                             break;
                         }
