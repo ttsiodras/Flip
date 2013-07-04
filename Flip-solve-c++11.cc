@@ -147,9 +147,6 @@ void SolveBoard(Board& board)
         auto movesSoFar = get<3>(qtop);
         queue.pop_front();
 
-        if (level == 7)
-            exit(0);
-
         // Report depth increase when it happens
         if (level > oldLevel) {
             cout << "Depth searched:   " << level
@@ -274,8 +271,9 @@ int main()
     //board.get(4,3) = true;
     //board.get(4,4) = true;
     //
-    board.get(0,0) = true;
+    board.get(4,0) = true;
     board.get(4,1) = true;
+    board.get(4,2) = true;
 
     SolveBoard(board);
 }
