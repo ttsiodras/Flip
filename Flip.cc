@@ -18,7 +18,7 @@ const int SIZE = 5;
 
 // I quickly found out that the puzzle space is big, and memory usage becomes
 // an issue...  This define toggles the original unoptimized code back in:
-#define NONOPTIMAL_CODE
+//#define NONOPTIMAL_CODE
 
 #ifdef NONOPTIMAL_CODE
 // In the unoptimized version, the board was represented as a vector
