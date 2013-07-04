@@ -16,13 +16,13 @@ TARGETOCAML=Flip
 
 all:	$(TARGETOCAML) $(TARGETCPP11)
 
-world:	$(TARGETCPP) $(TARGETCPP11) $(TARGETOCAML)
+world:	$(TARGETCPP11) $(TARGETOCAML) # $(TARGETCPP)
 
 $(TARGETCPP): $(TARGETCPP).cc
 	$(CXX) -O3 -o $@ $(CXXFLAGS) $<
 
 $(TARGETCPP11):	$(TARGETCPP11).cc
-	$(CXX) -O3 -std=c++0x -o $@ $(CXXFLAGS) $<
+	$(CXX) -O3 -march=native -mtune=native -mmmx -msse -std=c++0x -o $@ $(CXXFLAGS) $<
 	#$(CXX) -g -std=c++0x -o $@ $(CXXFLAGS) $<
 
 $(TARGETOCAML):	$(TARGETOCAML).ml
@@ -33,7 +33,7 @@ cross:
 	arm-apple-darwin-g++ -DNDEBUG Flip-solve.cc -o Flip-iOS
 
 benchmark:	world
-	@./bench.sh
+	/usr/bin/time /bin/bash -c "yes | ./Flip-solve-c++11"
 
 clean:
 	rm -f $(TARGETCPP) $(TARGETCPP11) $(TARGETOCAML) data.rgb  Flip.cm? Flip.o
