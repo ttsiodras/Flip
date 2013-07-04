@@ -3,13 +3,12 @@
 #include <cstring>
 #include <cstdlib>
 #include <iostream>
+#include <iomanip>
 #include <algorithm>
-#include <fstream>
 #include <map>
 #include <set>
 #include <list>
 #include <tuple>
-#include <vector>
 #include <bitset>
 
 using namespace std;
@@ -120,7 +119,7 @@ struct State {
 
 void SolveBoard(Board& board)
 {
-    cout << "\nSearching for a solution...";
+    cout << "\nSearching for a solution...\n\n";
 
     // We need to store the last move that got us to a specific
     // board state - that way we can backtrack from a final board
@@ -174,8 +173,8 @@ void SolveBoard(Board& board)
 
         // Report depth increase when it happens
         if (level > oldLevel) {
-            cout << "Depth searched:   " << level
-                 << ", Q: " << queue.size() << endl;
+            cout << "Depth searched: " << setw(2) << level
+                 << ", states to check in Q: " << queue.size() << endl;
             oldLevel = level;
         }
 
