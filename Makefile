@@ -18,7 +18,7 @@ $(TARGETCPP11):	Flip.cc
 $(TARGETOCAML):	Flip.ml
 	ocamlopt $(OCAMLFLAGS) -o ./$@ bigarray.cmxa $<
 
-test:
+test:	| $(TARGETCPP11)
 	/bin/bash -c "time yes | ./FlipCPP"
 
 clean:
