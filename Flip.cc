@@ -44,12 +44,21 @@ const int SIZE = 5;
 
 // We will need to store the moves done so far, to avoid redoing them,
 // Since memory is at a premium, we use a bitset to check for this
-struct ListOfMoves : bitset<SIZE*SIZE> {
-    ListOfMoves(unsigned long v=0):bitset<SIZE*SIZE>(v) {}
+unsigned addMove(unsigned listOfMovesSoFar, unsigned ofs) {
+    return listOfMovesSoFar | (1U<<ofs); 
+}
 
-    void addMove(unsigned ofs)           { set(ofs); }
-    bool moveAlreadyPlayed(unsigned ofs) { return test(ofs); }
-};
+bool moveAlreadyPlayed(unsigned listOfMovesSoFar, unsigned ofs) {
+    return listOfMovesSoFar & (1U<<ofs);
+}
+
+bool get(unsigned board, unsigned ofs) {
+    return board & (1U << ofs);
+}
+
+unsigned flip(unsigned board, unsigned ofs) {
+    return board ^ (1U << ofs);
+}
 
 #ifdef NONOPTIMAL_CODE
 // In the unoptimized version, the board was represented as a vector
@@ -86,43 +95,6 @@ typedef tuple<unsigned char, Move, Board, ListOfMoves> State;
 
 #else
 
-// In the optimized version, bitsets are used to represent boards. Basically,
-// this means that an unsigned long stores the two possible tile states
-// (Full/Empty) of each tile, storing each tile in one bit.
-//
-// The difference in memory usage is an order of magnitude...
-
-struct Board: public bitset<SIZE*SIZE> {
-    Board(unsigned long v=0):bitset<SIZE*SIZE>(v) {}
-
-    // The Board will be used as a key in a set (visited board states)
-    // In contrast to the vector used in the non-optimized version,
-    // the bitset does not provide a default comparison operator,
-    // so we had to provide our own:
-    inline bool operator<(const Board& rhs) const {
-        // Instead of comparing the bits one by one...
-        //
-        //   size_t i = SIZE*SIZE-1;
-        //   while (i > 0) {
-        //       if ((*this)[i-1] == rhs[i-1])
-        //           i--;
-        //       else
-        //          return (*this)[i-1] < rhs[i-1];
-        //   }
-        //   return false;
-        //
-        // ... we can compare the contained unsigned long ;
-        // this provided a 2x speedup!
-        return to_ulong() < rhs.to_ulong();
-    };
-};
-
-// For this optimization via to_ulong() to work, the board size must fit
-// within an unsigned long - verify this at compile-time:
-static_assert(
-    sizeof(Board)<=sizeof(unsigned long),
-    "Uncomment the full comparison in Board::operator<");
-
 // Squeeze some more memory out of the Move, by storing both
 // x and y in a single unsigned char's 8 bits (4 for x, 4 for y)
 struct Move {
@@ -145,8 +117,8 @@ struct State {
     State(
         unsigned char level,
         const Move& move,
-        const Board& board,
-        const ListOfMoves& listOfMoves)
+        unsigned board,
+        unsigned listOfMoves)
     {
         // First unsigned long's 32 bits:
         //
@@ -156,14 +128,14 @@ struct State {
         //   |___ The two upper bits of move._yx
         //
         _u1 = (unsigned(move._yx) & 0xC0) << 24;
-        _u1|= (unsigned(level&0x1f) << 25)       | board.to_ulong();
+        _u1|= (unsigned(level&0x1f) << 25)       | board;
 
         // Second unsigned long's 32 bits:
         //
         //    <-- 6 low bits of move._yx -> <-- The 25 bits of listOfMoves -->
         // 31 30 29 ...               26 25 24 23 22 21 20 19 18 17 16 15... 0
         //
-        _u2 = (unsigned(move._yx&0x3f) << 25)    | listOfMoves.to_ulong();
+        _u2 = (unsigned(move._yx&0x3f) << 25)    | listOfMoves;
         //
         // Oh look - we have one bit to spare :-)
     }
@@ -171,8 +143,8 @@ struct State {
     unsigned char getLevel()     { return (unsigned char)((_u1>>25)&0x1F); }
     Move getMove()               { return Move((unsigned char)(_u2>>25|((_u1&0xC0000000)>>24))); }
 
-    Board getBoard()             { return Board      (_u1 & 0x1FFFFFF); }
-    ListOfMoves getListOfMoves() { return ListOfMoves(_u2 & 0x1FFFFFF); }
+    unsigned getBoard()          { return _u1 & 0x1FFFFFF; }
+    unsigned getListOfMoves()    { return _u2 & 0x1FFFFFF; }
 };
 #endif
 
@@ -194,13 +166,13 @@ const pair<int,int> g_offsetsList[] = {
 //////////////////////////////
 
 // Pretty-print a board, highlighting a possible move:
-void printBoard(const Board& board, Move move)
+void printBoard(unsigned board, Move move)
 {
     cout << "+---------------+\n";
     for(int i=0; i<SIZE; i++) {
         cout << "|";
         for(int j=0; j<SIZE; j++) {
-            char c = board.test(OFS(i,j))?'X':' ';
+            char c = get(board, OFS(i,j))?'X':' ';
             if (move.y() == i && move.x() == j)
                 cout << '[' << c << ']';
             else
@@ -212,29 +184,30 @@ void printBoard(const Board& board, Move move)
 }
 
 // Modify a board, by playing a move:
-void playMove(Board& board, int y, int x)
+unsigned playMove(unsigned board, int y, int x)
 {
     for (auto& step: g_offsetsList) {
         int yy = y + step.first;
         int xx = x + step.second;
         if (yy>=0 && yy<SIZE && xx>=0 && xx<SIZE) {
-            board.flip(OFS(yy,xx));
+            board = flip(board, OFS(yy,xx));
         }
     }
+    return board;
 }
 
 // ...and finally, the brains of the operation:
 // a Breadth-First-Search of the problem space.
 //  ( http://en.wikipedia.org/wiki/Breadth-first_search )
 
-void SolveBoard(Board& initialBoard)
+void SolveBoard(unsigned initialBoard)
 {
     cout << "\nSearching for a solution...\n\n";
 
     // We need to store the last move that got us to a specific
     // board state - that way we can backtrack from a final board
     // state to the list of moves we used to achieve it.
-    typedef pair<Board, int> BoardAndLevel;
+    typedef pair<unsigned, int> BoardAndLevel;
     map<BoardAndLevel, Move> previousMoves;
 
     // We start by storing a "sentinel" value, for the initial board
@@ -247,7 +220,7 @@ void SolveBoard(Board& initialBoard)
 
     // We must not revisit board states we have already examined,
     // so we need a 'visited' set:
-    set<Board> visited;
+    set<unsigned> visited;
 
     // Now, to implement Breadth First Search, all we need is a Queue
     // storing the states we need to investigate - so it needs to
@@ -263,7 +236,7 @@ void SolveBoard(Board& initialBoard)
     // Start the Q with our initial board state, depth, a sentinel Move
     // (we used no move to get here) and an empty list of moves so far.
     queue.push_back(
-        State(0, Move(Move::Sentinel, Move::Sentinel), initialBoard, ListOfMoves(0)));
+        State(0, Move(Move::Sentinel, Move::Sentinel), initialBoard, 0));
 
     while(!queue.empty()) {
 
@@ -312,7 +285,7 @@ void SolveBoard(Board& initialBoard)
 
         if (it == board.end()) {
 #else
-        if (board.to_ulong() == 0) {
+        if (board == 0) {
 #endif
             // Yes - we did it!
             cout << "\n\nSolved at depth " << int(level) << "!\n";
@@ -320,7 +293,7 @@ void SolveBoard(Board& initialBoard)
             // To print the Moves we used in normal order, we will
             // backtrack through the board states to print
             // the Move we used at each one...
-            typedef tuple<Board, Move> BreadCrumb;
+            typedef tuple<unsigned, Move> BreadCrumb;
             list<BreadCrumb> solution;
             auto itMove = previousMoves.find(BoardAndLevel(board, level));
             while (itMove != previousMoves.end()) {
@@ -328,7 +301,7 @@ void SolveBoard(Board& initialBoard)
                     // Sentinel - reached starting board
                     break;
                 // Add this board to the front of the list...
-                playMove(board, itMove->second.y(), itMove->second.x());
+                board = playMove(board, itMove->second.y(), itMove->second.x());
                 solution.push_front(BreadCrumb(board, itMove->second));
                 level--;
                 itMove = previousMoves.find(BoardAndLevel(board, level));
@@ -351,22 +324,20 @@ void SolveBoard(Board& initialBoard)
         for(int i=0; i<SIZE; i++) {
             for(int j=0; j<SIZE; j++) {
 
-                if (movesSoFar.moveAlreadyPlayed(OFS(i,j)))
+                if (moveAlreadyPlayed(movesSoFar, OFS(i,j)))
                     continue;
 
                 for (auto& step: g_offsetsList) {
                     int yy = i + step.first;
                     int xx = j + step.second;
                     if (yy>=0 && yy<SIZE && xx>=0 && xx<SIZE) {
-                        if (board.test(OFS(yy,xx))) {
-                            Board newBoard = board;
-                            playMove(newBoard, i, j);
+                        if (get(board, OFS(yy,xx))) {
+                            unsigned newBoard = playMove(board, i, j);
 
                             if (visited.find(newBoard) == visited.end()) {
                                 /* Add to the end of the queue for further
                                  * investigation */
-                                auto newMovesSoFar = movesSoFar;
-                                newMovesSoFar.addMove(OFS(i,j));
+                                auto newMovesSoFar = addMove(movesSoFar, OFS(i,j));
                                 queue.push_back(
                                     State(  (unsigned char)(level+1),
                                             Move(i, j),
@@ -386,7 +357,7 @@ void SolveBoard(Board& initialBoard)
 
 int main()
 {
-    Board board;
+    unsigned board = 0;
     //board.set(OFS(0,0));
     //board.set(OFS(0,4));
     //SolveBoard(board);
@@ -417,11 +388,11 @@ int main()
     //board.set(OFS(4,4));
     //SolveBoard(board);
     //
-    board.set(OFS(1,0));
-    board.set(OFS(2,1));
-    board.set(OFS(3,1));
-    board.set(OFS(4,1));
-    board.set(OFS(4,3));
-    board.set(OFS(4,4));
+    board = flip(board, OFS(1,0));
+    board = flip(board, OFS(2,1));
+    board = flip(board, OFS(3,1));
+    board = flip(board, OFS(4,1));
+    board = flip(board, OFS(4,3));
+    board = flip(board, OFS(4,4));
     SolveBoard(board);
 }
