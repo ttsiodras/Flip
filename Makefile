@@ -21,7 +21,7 @@ CXXFLAGS=-Wall -Werror -Wextra -Wconversion -Wno-deprecated -Winit-self -Wsign-c
 CXXFLAGS+=-O3 -march=native -mtune=native -mmmx -msse
 #CXXFLAGS+=-g
 
-OCAMLFLAGS=-unsafe -rectypes -inline 1000 
+OCAMLFLAGS=-unsafe -rectypes -inline 1000 -annot
 #OCAMLFLAGS=-annot
 
 all:	$(TARGETS)
@@ -33,7 +33,13 @@ $(TARGETOCAML):	Flip.ml
 	ocamlopt $(OCAMLFLAGS) -o ./$@ bigarray.cmxa $<
 
 test:	| $(TARGETCPP11)
+ifneq ($(GPLUSPLU_EXISTS),)
 	bash -c "time yes | ./FlipCPP"
+endif
+ifneq ($(OCAMLOPT_EXISTS),)
+	bash -c "time yes | ./FlipML"
+endif
+	echo Benchmark completed.
 
 clean:
 	rm -f $(TARGETCPP11) $(TARGETOCAML) Flip.cm? Flip.o
