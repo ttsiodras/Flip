@@ -3,7 +3,7 @@ TARGETOCAML=FlipML
 
 CXX=g++
 
-CXXFLAGS=-Wall
+CXXFLAGS=-Wall -Werror -Wextra -Wconversion -Wno-deprecated -Winit-self -Wsign-conversion -Wredundant-decls -Wvla -Wshadow -Wctor-dtor-privacy -Wnon-virtual-dtor -Woverloaded-virtual -Wlogical-op -Wmissing-include-dirs -Winit-self -Wpointer-arith -Wcast-qual -Wcast-align -Wsign-promo -Wundef
 CXXFLAGS+=-O3 -march=native -mtune=native -mmmx -msse
 #CXXFLAGS+=-g
 
