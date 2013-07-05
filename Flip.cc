@@ -1,7 +1,5 @@
 #include <assert.h>
 
-#include <cstring>
-#include <cstdlib>
 #include <iostream>
 #include <iomanip>
 #include <algorithm>
@@ -13,19 +11,36 @@
 
 using namespace std;
 
-// The board is SIZE x SIZE tiles
-const int SIZE = 5;
+//////////////////////////////
+//
+//      Configuration
+//
+//////////////////////////////
 
-#define OFS(y,x) (size_t)((y)*SIZE + (x))
-
-// I quickly found out that the puzzle space is big, and memory usage becomes
-// an issue...  This define toggles the original unoptimized code back in:
+// I found out via the OCaml version that the puzzle space is big, and memory
+// usage becomes an issue.  Defining NONOPTIMAL_CODE shows the issues that
+// I faced in my original port to C++ - which more or less mirrored 
+// the OCaml version of the code.
+//
 //#define NONOPTIMAL_CODE
 
 //////////////////////////////
-//      Types used
+//
+//      Constants
+//
 //////////////////////////////
 
+// The board is SIZE x SIZE tiles
+const int SIZE = 5;
+
+// Related helper macro to pass (y,x) in one step
+#define OFS(y,x) (size_t)((y)*SIZE + (x))
+
+//////////////////////////////
+//
+//      Types used
+//
+//////////////////////////////
 
 // We will need to store the moves done so far, to avoid redoing them,
 // Since memory is at a premium, we use a bitset to check for this
@@ -75,31 +90,33 @@ typedef tuple<unsigned char, Move, Board, ListOfMoves> State;
 // this means that an unsigned long stores the two possible tile states
 // (Full/Empty) of each tile, storing each tile in one bit.
 //
-// The difference in memory usage is at least an order of magnitude...
+// The difference in memory usage is an order of magnitude...
+
 struct Board: public bitset<SIZE*SIZE> {
     Board(unsigned long v=0):bitset<SIZE*SIZE>(v) {}
 
-    // The Board will be used as a key in a set (visited)
+    // The Board will be used as a key in a set (visited board states)
     // In contrast to the vector used in the non-optimized version,
     // the bitset does not provide a default comparison operator,
     // so we had to provide our own:
     inline bool operator<(const Board& rhs) const {
         // Instead of comparing the bits one by one...
         //
-        // size_t i = SIZE*SIZE-1;
-        // while (i > 0) {
-        //     if ((*this)[i-1] == rhs[i-1])
-        //         i--;
-        //     else
-        //        return (*this)[i-1] < rhs[i-1];
-        // }
-        // return false;
+        //   size_t i = SIZE*SIZE-1;
+        //   while (i > 0) {
+        //       if ((*this)[i-1] == rhs[i-1])
+        //           i--;
+        //       else
+        //          return (*this)[i-1] < rhs[i-1];
+        //   }
+        //   return false;
         //
-        // Instead of comparing the bits one by one, we can compare
-        // the contained unsigned long - this gave a 100% speedup:
+        // ... we can compare the contained unsigned long ;
+        // this provided a 2x speedup!
         return to_ulong() < rhs.to_ulong();
     };
 };
+
 // For this optimization via to_ulong() to work, the board size must fit
 // within an unsigned long - verify this at compile-time:
 static_assert(
@@ -107,7 +124,7 @@ static_assert(
     "Uncomment the full comparison in Board::operator<");
 
 // Squeeze some more memory out of the Move, by storing both
-// x and y in a single unsigned char's 8 bits (4 for x, 4 for y):
+// x and y in a single unsigned char's 8 bits (4 for x, 4 for y)
 struct Move {
     enum { Sentinel=0xf };
     unsigned char _yx;
@@ -116,9 +133,13 @@ struct Move {
     inline int y() const                        { return _yx>>4;  }
     inline int x() const                        { return _yx&0xf; }
 };
+// Verify the moves fit in 4 bits at compile time
+static_assert(
+    SIZE<Move::Sentinel,
+    "Moves (x,y coordinates) are stored in 4 bits...");
 
-// For the State placed in the Breadth-First-Search Queue, I had to
-// optimize for memory use - packing all info in 2 unsigned longs:
+// Finally, for the State placed in the Breadth-First-Search Queue, 
+// I optimized memory use - packing all info in 2 unsigned longs:
 struct State {
     unsigned long _u1, _u2;
     State(
@@ -155,10 +176,22 @@ struct State {
 };
 #endif
 
+//////////////////////////////
+//
+//   Global variables
+//
+//////////////////////////////
+
 // The offsets of tiles to toggle when clicking on a tile:
 const pair<int,int> g_offsetsList[] = {
     {0,0}, {0,1}, {0,-1}, {1,0}, {-1,0}
 };
+
+//////////////////////////////
+//
+//    Functions
+//
+//////////////////////////////
 
 // Pretty-print a board, highlighting a possible move:
 void printBoard(const Board& board, Move move)
@@ -282,7 +315,7 @@ void SolveBoard(Board& initialBoard)
         if (board.to_ulong() == 0) {
 #endif
             // Yes - we did it!
-            cout << "\n\nSolved at depth " << level << "!\n";
+            cout << "\n\nSolved at depth " << int(level) << "!\n";
 
             // To print the Moves we used in normal order, we will
             // backtrack through the board states to print
@@ -356,35 +389,39 @@ int main()
     Board board;
     //board.set(OFS(0,0));
     //board.set(OFS(0,4));
+    //SolveBoard(board);
     //
     //board.set(OFS(0,1)); board.set(OFS(0,4));
     //board.set(OFS(1,3));
     //board.set(OFS(2,0)); board.set(OFS(2,2)); board.set(OFS(2,4)); board.set(OFS(3,0));
     //board.set(OFS(3,2)); board.set(OFS(3,3)); board.set(OFS(3,4));
     //board.set(OFS(4,1)); board.set(OFS(4,3));
+    //SolveBoard(board);
     //
     //board.set(OFS(0,1)); board.set(OFS(0,2)); board.set(OFS(0,4));
     //board.set(OFS(1,0)); board.set(OFS(1,4));
     //board.set(OFS(2,0)); board.set(OFS(2,4));
     //board.set(OFS(3,0)); board.set(OFS(3,3)); board.set(OFS(3,4));
     //board.set(OFS(4,0)); board.set(OFS(4,1)); board.set(OFS(4,3)); board.set(OFS(4,4));
+    //SolveBoard(board);
     //
     //board.set(OFS(0,0)); board.set(OFS(0,4));
     //board.set(OFS(1,2)); board.set(OFS(1,3)); board.set(OFS(1,4));
     //board.set(OFS(2,2)); board.set(OFS(2,4));
     //board.set(OFS(3,0)); board.set(OFS(3,2)); board.set(OFS(3,3)); board.set(OFS(3,4));
     //board.set(OFS(4,0)); board.set(OFS(4,1)); board.set(OFS(4,2)); board.set(OFS(4,4));
+    //SolveBoard(board);
     //
     //board.set(OFS(4,2));
     //board.set(OFS(4,3));
     //board.set(OFS(4,4));
+    //SolveBoard(board);
     //
-    board.set(OFS(2,0));
-    board.set(OFS(3,0));
+    board.set(OFS(1,0));
+    board.set(OFS(2,1));
     board.set(OFS(3,1));
     board.set(OFS(4,1));
     board.set(OFS(4,3));
     board.set(OFS(4,4));
-
     SolveBoard(board);
 }
