@@ -1,16 +1,3 @@
-#include <assert.h>
-
-#include <iostream>
-#include <iomanip>
-#include <algorithm>
-#include <map>
-#include <set>
-#include <list>
-#include <tuple>
-#include <bitset>
-
-using namespace std;
-
 //////////////////////////////
 //
 //      Configuration
@@ -24,6 +11,25 @@ using namespace std;
 //
 //#define NONOPTIMAL_CODE
 
+#include <assert.h>
+
+#include <iostream>
+#include <iomanip>
+#include <algorithm>
+#include <map>
+
+#ifdef NONOPTIMAL_CODE
+#include <set>
+#else
+#include <unordered_set>
+#endif
+
+#include <list>
+#include <tuple>
+#include <bitset>
+
+using namespace std;
+
 //////////////////////////////
 //
 //      Constants
@@ -31,10 +37,10 @@ using namespace std;
 //////////////////////////////
 
 // The board is SIZE x SIZE tiles
-const int SIZE = 5;
+const int SIZE = 5U;
 
 // Related helper macro to pass (y,x) in one step
-#define OFS(y,x) (size_t)((y)*SIZE + (x))
+#define OFS(y,x) (unsigned(y)*SIZE + unsigned(x))
 
 //////////////////////////////
 //
@@ -115,6 +121,12 @@ struct Board: public bitset<SIZE*SIZE> {
         // this provided a 2x speedup!
         return to_ulong() < rhs.to_ulong();
     };
+};
+
+struct BoardHashFunction {
+    size_t operator ()(const Board &board) const {
+        return (size_t) board.to_ulong();
+    }
 };
 
 // For this optimization via to_ulong() to work, the board size must fit
@@ -247,7 +259,11 @@ void SolveBoard(Board& initialBoard)
 
     // We must not revisit board states we have already examined,
     // so we need a 'visited' set:
+#ifdef NONOPTIMAL_CODE
     set<Board> visited;
+#else
+    unordered_set<Board, BoardHashFunction> visited;
+#endif
 
     // Now, to implement Breadth First Search, all we need is a Queue
     // storing the states we need to investigate - so it needs to
