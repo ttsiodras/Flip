@@ -440,4 +440,20 @@ int main()
     board.set(OFS(4,3));
     board.set(OFS(4,4));
     SolveBoard(board);
+
+    // Depth 11
+    //board.set(OFS(0,0));
+    //board.set(OFS(0,1));
+    //board.set(OFS(0,2));
+    //board.set(OFS(0,4));
+    //board.set(OFS(1,0));
+    //board.set(OFS(2,1));
+    //board.set(OFS(2,2));
+    //board.set(OFS(2,3));
+    //board.set(OFS(3,0));
+    //board.set(OFS(3,1));
+    //board.set(OFS(3,2));
+    //board.set(OFS(4,2));
+    //board.set(OFS(4,4));
+    //SolveBoard(board);
 }
