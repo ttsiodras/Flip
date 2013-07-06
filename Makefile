@@ -17,7 +17,7 @@ $(warning Missing g++, cannot compile C++ code...)
 endif
 
 CXX=g++
-CXXFLAGS=-Wall -Werror -Wextra -Wconversion -Wno-deprecated -Winit-self -Wsign-conversion -Wredundant-decls -Wvla -Wshadow -Wctor-dtor-privacy -Wnon-virtual-dtor -Woverloaded-virtual -Wlogical-op -Wmissing-include-dirs -Winit-self -Wpointer-arith -Wcast-qual -Wcast-align -Wsign-promo -Wundef
+CXXFLAGS=-Wall -Wextra -Wconversion -Wno-deprecated -Winit-self -Wsign-conversion -Wredundant-decls -Wvla -Wshadow -Wctor-dtor-privacy -Wnon-virtual-dtor -Woverloaded-virtual -Wlogical-op -Wmissing-include-dirs -Winit-self -Wpointer-arith -Wcast-qual -Wcast-align -Wsign-promo -Wundef
 CXXFLAGS+=-O3 -march=native -mtune=native -mmmx -msse
 #CXXFLAGS+=-g
 
@@ -32,7 +32,7 @@ $(TARGETCPP11):	Flip.cc
 $(TARGETOCAML):	Flip.ml
 	ocamlopt $(OCAMLFLAGS) -o ./$@ bigarray.cmxa $<
 
-test:	| $(TARGETCPP11)
+test:	| $(TARGETS)
 ifneq ($(GPLUSPLU_EXISTS),)
 	bash -c "time yes | ./FlipCPP"
 endif
