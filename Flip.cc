@@ -89,6 +89,17 @@ struct Move {
 // - The moves we've played to get here (bitset)
 typedef tuple<unsigned char, Move, Board, ListOfMoves> State;
 
+// Modify a board, by playing a move:
+void playMove(Board& board, int y, int x)
+{
+    for (auto& step: g_offsetsList) {
+        int yy = y + step.first;
+        int xx = x + step.second;
+        if (yy>=0 && yy<SIZE && xx>=0 && xx<SIZE) {
+            board.flip(OFS(yy,xx));
+        }
+    }
+}
 
 #else
 
@@ -186,6 +197,86 @@ struct State {
     Board getBoard()             { return Board      (_u1 & 0x1FFFFFF); }
     ListOfMoves getListOfMoves() { return ListOfMoves(_u2 & 0x1FFFFFF); }
 };
+
+// I generated a move table with this little Python segment:
+// 
+// g_moveOffsets = [(0,0), (0,1), (0,-1), (1,0), (-1,0)]
+// 
+// def flip(y,x,bitOffsets):
+//     if y>=0 and y<=4 and x>=0 and x<=4:
+//         bitOffsets[y*5+x] = 1
+// 
+// def binary(bitOffsets):
+//     return ''.join(reversed(list('1' if ofs in bitOffsets else '0' for ofs in xrange(0,25))))
+// 
+// for y in xrange(0, 5):
+//     for x in xrange(0, 5):
+//         bitOffsets = {}
+//         for ystep, xstep in g_moveOffsets:
+//             flip(y+ystep, x+xstep, bitOffsets)
+//         print "    // %d,%d -> %02d ->" % (y, x, y*5+x),
+//         print binary(bitOffsets)
+//         print "    %d," % int(binary(bitOffsets), 2)
+
+unsigned long moveLookup[] = {
+    // 0,0 -> 00 -> 0000000000000000000100011
+    35,
+    // 0,1 -> 01 -> 0000000000000000001000111
+    71,
+    // 0,2 -> 02 -> 0000000000000000010001110
+    142,
+    // 0,3 -> 03 -> 0000000000000000100011100
+    284,
+    // 0,4 -> 04 -> 0000000000000001000011000
+    536,
+    // 1,0 -> 05 -> 0000000000000010001100001
+    1121,
+    // 1,1 -> 06 -> 0000000000000100011100010
+    2274,
+    // 1,2 -> 07 -> 0000000000001000111000100
+    4548,
+    // 1,3 -> 08 -> 0000000000010001110001000
+    9096,
+    // 1,4 -> 09 -> 0000000000100001100010000
+    17168,
+    // 2,0 -> 10 -> 0000000001000110000100000
+    35872,
+    // 2,1 -> 11 -> 0000000010001110001000000
+    72768,
+    // 2,2 -> 12 -> 0000000100011100010000000
+    145536,
+    // 2,3 -> 13 -> 0000001000111000100000000
+    291072,
+    // 2,4 -> 14 -> 0000010000110001000000000
+    549376,
+    // 3,0 -> 15 -> 0000100011000010000000000
+    1147904,
+    // 3,1 -> 16 -> 0001000111000100000000000
+    2328576,
+    // 3,2 -> 17 -> 0010001110001000000000000
+    4657152,
+    // 3,3 -> 18 -> 0100011100010000000000000
+    9314304,
+    // 3,4 -> 19 -> 1000011000100000000000000
+    17580032,
+    // 4,0 -> 20 -> 0001100001000000000000000
+    3178496,
+    // 4,1 -> 21 -> 0011100010000000000000000
+    7405568,
+    // 4,2 -> 22 -> 0111000100000000000000000
+    14811136,
+    // 4,3 -> 23 -> 1110001000000000000000000
+    29622272,
+    // 4,4 -> 24 -> 1100010000000000000000000
+    25690112
+};
+
+// Modify a board, by playing a move:
+void playMove(Board& board, int y, int x)
+{
+    board = board.to_ulong() ^ moveLookup[y*SIZE+x];
+}
+
 #endif
 
 //////////////////////////////
@@ -221,18 +312,6 @@ void printBoard(const Board& board, Move move)
         cout << "|\n";
     }
     cout << "+---------------+\n";
-}
-
-// Modify a board, by playing a move:
-void playMove(Board& board, int y, int x)
-{
-    for (auto& step: g_offsetsList) {
-        int yy = y + step.first;
-        int xx = x + step.second;
-        if (yy>=0 && yy<SIZE && xx>=0 && xx<SIZE) {
-            board.flip(OFS(yy,xx));
-        }
-    }
 }
 
 // ...and finally, the brains of the operation:
