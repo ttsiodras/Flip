@@ -30,17 +30,22 @@
 
 using namespace std;
 
-//////////////////////////////
+//////////////////////////////////
 //
-//      Constants
+//      Constants,macros,offsets
 //
-//////////////////////////////
+//////////////////////////////////
 
 // The board is SIZE x SIZE tiles
 const int SIZE = 5U;
 
 // Related helper macro to pass (y,x) in one step
 #define OFS(y,x) (unsigned(y)*SIZE + unsigned(x))
+
+// The offsets of tiles to toggle when clicking on a tile:
+const pair<int,int> g_offsetsList[] = {
+    {0,0}, {0,1}, {0,-1}, {1,0}, {-1,0}
+};
 
 //////////////////////////////
 //
@@ -281,17 +286,6 @@ void playMove(Board& board, int y, int x)
 
 //////////////////////////////
 //
-//   Global variables
-//
-//////////////////////////////
-
-// The offsets of tiles to toggle when clicking on a tile:
-const pair<int,int> g_offsetsList[] = {
-    {0,0}, {0,1}, {0,-1}, {1,0}, {-1,0}
-};
-
-//////////////////////////////
-//
 //    Functions
 //
 //////////////////////////////
@@ -449,6 +443,8 @@ void SolveBoard(Board& initialBoard)
                 if (movesSoFar.moveAlreadyPlayed(OFS(i,j)))
                     continue;
 
+                // dont flip this tile unless there is at least one
+                // tile set in the neighborhood...
                 for (auto& step: g_offsetsList) {
                     int yy = i + step.first;
                     int xx = j + step.second;
